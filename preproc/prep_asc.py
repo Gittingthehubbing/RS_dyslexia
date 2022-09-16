@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import re
+import pathlib as pl
 
 
 
@@ -148,17 +149,9 @@ def text_coords(filename:str, yRes:int= 768):
     df2 = pd.DataFrame(list(zip(letter_n, x1_n, x2_n, y1_n, y2_n)),
                 columns =['letter', 'x1', 'x2', 'y1', 'y2'] )   
     return df2
-
-def main():
-    stimuli_folder = "stimuli"
-    # if stimuli_folder in os.listdir():
-    #     os.chdir(stimuli_folder)
-    # else:
-    #     os.chdir(f'../{stimuli_folder}')
-
-    file_dir= 'D:/pydata/Eye_Tracking/Dyslexia/Dyslexia_Leon/Dyslexia/'
-    img_dir= f'{stimuli_folder}/img/'
-    file_name= '3'
+def rewrite_asc(file_dir:str, file_name:str, img_dir:str):
+    """Goes through asc file from eye-tracker and fixes issues.
+    Creates new asc file in subfolder ./new"""
 
     # open the .asc file
     with open(file_dir + file_name + '.asc',"r") as file:
@@ -193,15 +186,13 @@ def main():
             trial_seq= trial_seq+1
             
             if 'text' in img_file: # check if it is item
-                D= 0
-                
-            if 'question' in img_file: # check if it is item
+                D= 0                
+            elif 'question' in img_file: # check if it is item
                 D= 1       
                 
             if 'TNR' in img_file: # times new roman font
-                cond= 1
-                
-            if 'OD' in img_file: # open dyslexia font
+                cond= 1                
+            elif 'OD' in img_file: # open dyslexia font
                 cond= 2
                 
             if D== 0: # if not question...
@@ -213,8 +204,10 @@ def main():
             ET_flag= 'TRIALID ' + 'E' + str(cond)+'I' +str(item)+ 'D' +str(D)
             
             ## extract text coordinates from image:
-            df= text_coords(img_dir + img_file)
-            
+            im_path = list(pl.Path(img_dir).rglob(f"*{img_file}"))
+            assert len(im_path) >0, "no matching images found"
+
+            df= text_coords(str(im_path[0]))            
 
         if 'TRIALID' in curr_line:
             if wait_flag==0:
@@ -270,6 +263,15 @@ def main():
 
     with open(file_dir + 'new/'+ file_name + "_new.asc", 'w') as f:
         f.write('\n'.join(new_file))
+
+def main():
+    data_base_path = "D:/pydata/Eye_Tracking/Dyslexia/Dyslexia_Leon"
+    file_dir= f'{data_base_path}/Dyslexia/'
+    img_dir= f'{data_base_path}/Info/Stimuli Texts Questions/'
+    files = list(pl.Path(file_dir).glob("*.asc"))
+
+    for file_name in files[:3]:
+        rewrite_asc(file_dir, file_name.stem, img_dir)
 
 if __name__=="__main__":
     main()
