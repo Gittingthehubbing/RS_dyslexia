@@ -4,19 +4,22 @@ Created on Fri Dec 17 00:24:06 2021
 
 @author: Martin R. Vasilev
 """
+
 import os
 import pytesseract
 from PIL import Image
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
 import pandas as pd
 import numpy as np
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+stimuli_folder = "stimuli"
 
-
-
-os.chdir(r'D:\R\RS_dyslexia\stimuli')
+if stimuli_folder in os.listdir():
+    os.chdir(stimuli_folder)
+else:
+    os.chdir(f'../{stimuli_folder}')
 
 ### Font settings:
 # TNR:
@@ -25,14 +28,11 @@ line_span= 18
 dist_lines= 5 
 
 
+img_path = f'img/TNR20text1Key.bmp'
+img = Image.open(img_path)
+data=pytesseract.image_to_boxes(img)
 
-img = 'D:\R\RS_dyslexia\stimuli\img\TNR20text1Key.bmp'
-imge = Image.open(img)
-data=pytesseract.image_to_boxes(imge)
-
-print(data)
-
-text = pytesseract.image_to_string(imge, config='--psm 11')
+text = pytesseract.image_to_string(img, config='--psm 11')
 
 # with open('coords1.txt', 'w') as f:
 #     f.write(data)
@@ -43,7 +43,7 @@ text = pytesseract.image_to_string(imge, config='--psm 11')
 # fig, ax = plt.subplots()
 
 # # Display the image
-# ax.imshow(imge)
+# ax.imshow(img)
 
 # # Create a Rectangle patch
 # rect = patches.Rectangle((113, 768-688), 5, 13, linewidth=1, edgecolor='r', facecolor='none')
@@ -53,13 +53,13 @@ text = pytesseract.image_to_string(imge, config='--psm 11')
 
 # plt.show()
 
-#plt.imsave(fname='my_image.png', arr=imge, cmap='gray_r', format='png')
+#plt.imsave(fname='my_image.png', arr=img, cmap='gray_r', format='png')
 
 
 lines= data.split('\n')
 lines= list(filter(None, lines))
 
-yRes= 768 # y dimension of screen
+yRes= img.size[1] # y dimension of screen
 # here y coords are recorded relative to bottom of image, so we need to reverse them
 
 # recode values from tesseract string into num coords:
@@ -88,28 +88,28 @@ y2_n= []
     
 for i in range(len(letter)):
     
-    if i>0:
-        if x1[i]- x2[i-1] >= 3:
+    if i>0 and x1[i]- x2[i-1] >= 3:
+        # if x1[i]- x2[i-1] >= 3:
             # add the empty space before character:
-            letter_n.append(' ')
-            x1_n.append(x2[i-1]+1) # start of empty space
-            x2_n.append(x1[i]-1) # end of empty space
-            y1_n.append(y1[i])
-            y2_n.append(y2[i])
-            
-            ## now we need to append actual character at current iteration:
-            letter_n.append(letter[i])
-            x1_n.append(x1[i])
-            x2_n.append(x2[i])
-            y1_n.append(y1[i])
-            y2_n.append(y2[i])
-        else:
-            ## not word boundary, append letters as per usual:
-            letter_n.append(letter[i])
-            x1_n.append(x1[i])
-            x2_n.append(x2[i])
-            y1_n.append(y1[i])
-            y2_n.append(y2[i])
+        letter_n.append(' ')
+        x1_n.append(x2[i-1]+1) # start of empty space
+        x2_n.append(x1[i]-1) # end of empty space
+        y1_n.append(y1[i])
+        y2_n.append(y2[i])
+        
+        ## now we need to append actual character at current iteration:
+        letter_n.append(letter[i])
+        x1_n.append(x1[i])
+        x2_n.append(x2[i])
+        y1_n.append(y1[i])
+        y2_n.append(y2[i])
+        # else:
+        #     ## not word boundary, append letters as per usual:
+        #     letter_n.append(letter[i])
+        #     x1_n.append(x1[i])
+        #     x2_n.append(x2[i])
+        #     y1_n.append(y1[i])
+        #     y2_n.append(y2[i])
                         
     else:
         letter_n.append(letter[i])
@@ -117,14 +117,16 @@ for i in range(len(letter)):
         x2_n.append(x2[i])
         y1_n.append(y1[i])
         y2_n.append(y2[i])
+
+    current_text = "".join(letter_n)
         
-df = pd.DataFrame(list(zip(letter_n, x1_n, x2_n, y1_n, y2_n)),
-               columns =['letter', 'x1', 'x2', 'y1', 'y2'] )
+# df = pd.DataFrame(list(zip(letter_n, x1_n, x2_n, y1_n, y2_n)),
+#                columns =['letter', 'x1', 'x2', 'y1', 'y2'] )
 
 xdiff = np.diff(x1_n) # differences between successive x1 numbers
 # Return-sweeps are going to show (large) negative differences
 neg_index= np.where(xdiff < 0)# find position of line breaks
-breaks= np.append(neg_index[0], len(df))
+breaks= np.append(neg_index[0], len(x1_n))
 
 ### start at beginning and use a fixed offset and between line-height
 #how to fix extreme values affecting min/ max:
@@ -134,7 +136,7 @@ breaks= np.append(neg_index[0], len(df))
 for i in range(len(breaks)):
     if i==0:
         start= 0
-        end= breaks[i]+1 # +1 bc we count from 0
+        end= breaks[0]+1 # +1 bc we count from 0
         y_start= y_offset # y offset of 1st line
         y_end= y_start+ line_span 
     else:
@@ -144,8 +146,8 @@ for i in range(len(breaks)):
         y_end= y_start+ line_span 
         
     # replace existing y positions with the box bounds:
-    y1_n[start:end]= [y_start]* len(df.y1[start:end])
-    y2_n[start:end]= [y_end]* len(df.y2[start:end])
+    y1_n[start:end]= [y_start]* len(y1_n.copy()[start:end])
+    y2_n[start:end]= [y_end]* len(y2_n.copy()[start:end])
         
 
 #x_diff= [x2_n - x1_n]
