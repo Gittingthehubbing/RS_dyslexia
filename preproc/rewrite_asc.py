@@ -9,7 +9,7 @@ from get_coords import text_coords
 
 def rewrite_asc( file_name:str, file_dir:str, img_dir:str):
     """Goes through asc file from eye-tracker and fixes issues.
-    Creates new asc file in subfolder ./new"""
+    Creates new asc file in folder {oldname}_new"""
 
     # open the .asc file
     with open(file_dir + file_name + '.asc',"r") as file:
@@ -118,6 +118,7 @@ def rewrite_asc( file_name:str, file_dir:str, img_dir:str):
         
         # append current line to new file once all changes have been done:
         new_file.append(curr_line)
-
-    with open(file_dir + 'new/'+ file_name + "_new.asc", 'w') as f:
+    file_dir_path = pl.Path(file_dir).parent.joinpath(f"{pl.Path(file_dir).stem}_new")
+    file_dir_path.mkdir(exist_ok=True,parents=False)
+    with open(file_dir_path.joinpath(file_name + "_new.asc") , 'w') as f:
         f.write('\n'.join(new_file))
