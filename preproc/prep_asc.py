@@ -26,7 +26,7 @@ def main():
             ),files)
     else:
         for file_name in files:
-            rewrite_asc(file_dir, file_name, img_dir)
+            rewrite_asc(file_name,file_dir, img_dir)
 
 if __name__=="__main__":
     main()
