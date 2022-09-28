@@ -13,7 +13,7 @@ from rewrite_asc import rewrite_asc
 
 
 def main():
-    use_multiprocessing = True #very slow otherwise
+    use_multiprocessing = False #very slow otherwise
     data_base_path = "D:/pydata/Eye_Tracking/Dyslexia/Dyslexia_Leon"
     file_dir= f'{data_base_path}/Dyslexia/'
     img_dir= f'{data_base_path}/Info/Stimuli Texts Questions/'
