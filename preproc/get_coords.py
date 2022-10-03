@@ -42,7 +42,7 @@ def plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replotted_"
     plt.savefig(save_name)
     plt.close("all")
 
-def text_coords(filename:str):
+def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binarise=False,add_border=True,upscale_im=True):
     """Function that extracts letter coordinates from stimulus image
     filename should be path to image with text."""
         
@@ -54,64 +54,83 @@ def text_coords(filename:str):
     # dist_lines= 5 
 
     # smallest_letter_pixels_x = 3
-    empty_space_width = 8
+    # empty_space_width = 8
     y_offset= 4
 
     """From Paper: OD (Open Dyslexia) 18pt
     TNR (Times New Roman) 20pt
     1024 X 768 pixel resolution"""
 
+    #TODO try:
+    #cv.adaptiveThreshold(img,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,\
+            # cv.THRESH_BINARY,11,2)
 
     img_path = filename
 
-    threshold = 225
     img = Image.open(img_path)
-    img = img.convert('L')
-    # Threshold
-    img = img.point( lambda p: 255 if p > threshold else 0 )
-    # To mono
-    img = img.convert('1')
 
-    # img = ImageOps.expand(img,border=10,fill='black') # add border that tessarect might benefit from
+    if binarise:
+        threshold = 225
+        img = img.convert('L')
+        # Threshold
+        img = img.point( lambda p: 255 if p > threshold else 0 )
+        # To mono
+        img = img.convert('1')
+
+    if add_border:
+        img = ImageOps.expand(img,border=10,fill='black') # add border that tessarect might benefit from
 
     im_width, im_height = img.size
-    im_resize_factor = 4
-    img = img.resize((im_width*im_resize_factor, im_height*im_resize_factor),resample=Image.Resampling.BICUBIC)
+    if upscale_im:
+        im_resize_factor = 4
+        img = img.resize((im_width*im_resize_factor, im_height*im_resize_factor),resample=Image.Resampling.BICUBIC)
+    else:
+        im_resize_factor = 1
 
-    data=pytesseract.image_to_boxes(img, config='--psm 11',output_type=pytesseract.Output.STRING)
-    word_data_df=pytesseract.image_to_data(img, config='--psm 11',output_type=pytesseract.Output.DATAFRAME)
-    osd=pytesseract.image_to_osd(img)
-    xml=pytesseract.image_to_alto_xml(img)
-    # pytesseract.run_and_get_output()
+    #https://github.com/tesseract-ocr/tesseract/blob/main/doc/tesseract.1.asc
 
-    text = pytesseract.image_to_string(img, config='--psm 11')
-
-    line_nums = []
-    current_line = -1
-    for idx,row in word_data_df.iterrows():
-        if idx==0:
-            line_nums.append(0)
-            continue
-        else:
-            if not row.isna().text and not isinstance(word_data_df.loc[idx-1,"text"],str): #np.isnan(word_data_df.loc[idx-1,"text"])
-                current_line += 1
-                line_nums.append(current_line)
+    if use_image_to_data:
+        word_data_df=pytesseract.image_to_data(img, config='--psm 3 --oem 1',output_type=pytesseract.Output.DATAFRAME)
+        text = pytesseract.image_to_string(img, config='--psm 3')
+        bool_filter = [False if ' ' == row.text else True for _,row in word_data_df.iterrows()]
+        word_data_df = word_data_df.copy().iloc[bool_filter]
+        if ' ' in word_data_df.iloc[-1].text:
+            word_data_df = word_data_df.copy().iloc[:-1]
+        line_nums = []
+        # is_last_word_in_line = []
+        current_line = -1
+        for idx,row in word_data_df.iterrows():
+            # is_last_word_in_line.append(False)
+            if idx==0:
+                line_nums.append(-1)
+                # if idx == word_data_df.shape[0]:
+                    # is_last_word_in_line[0]=True
+                continue
             else:
-                line_nums.append(current_line)
-    word_data_df["line_numer"] = line_nums
-    word_data_df = word_data_df.dropna(axis=0,how="any")    
-    word_data_df.loc[:,["left","top","width","height"]] = word_data_df.loc[:,["left","top","width","height"]].copy().applymap(lambda x: x/im_resize_factor)
+                if not row.isna().text and not isinstance(word_data_df.loc[idx-1,"text"],str): #np.isnan(word_data_df.loc[idx-1,"text"])
+                    current_line += 1
+                    line_nums.append(current_line)
+                    # if idx == 1:
+                        # is_last_word_in_line[0]=False
+                    # is_last_word_in_line[idx-1]=True
+                else:
+                    line_nums.append(current_line)
 
-    line_height_from_ocr = word_data_df.height.mean()
+        word_data_df["line_numer"] = line_nums
+        # word_data_df["is_last_word_in_line"] = is_last_word_in_line
+        word_data_df = word_data_df.dropna(axis=0,how="any")    
+        word_data_df.reset_index(inplace=True,drop=True)
+        word_data_df.loc[:,["left","top","width","height"]] = word_data_df.loc[:,["left","top","width","height"]].copy().applymap(lambda x: x/im_resize_factor)
+
+        line_height_from_ocr = word_data_df.height.mean()
+
+        
+    # else:
+    data=pytesseract.image_to_boxes(img, config='--psm 11',output_type=pytesseract.Output.STRING)
+    text_psm_11 = pytesseract.image_to_string(img, config='--psm 11')
+    
 
     img = img.resize((im_width, im_height),resample=Image.Resampling.NEAREST)
-
-    # with open('coords1.txt', 'w') as f:
-    #     f.write(data)
-        
-    # with open('text1.txt', 'w') as f:
-    #     f.write(text)
-
 
 
     lines= data.split('\n')
@@ -146,40 +165,53 @@ def text_coords(filename:str):
         letter_width = x2[letter_idx] - x1[letter_idx]
         letter_widths[l] = letter_width
     max_letter_width = np.max([v for k,v in letter_widths.items()])
+    min_letter_width = np.min([v for k,v in letter_widths.items()])
+    letter_widths['.'] = min_letter_width
 
-    
-    boxes = []
+    if use_image_to_data:
+        
+        boxes = []
 
-    for df_idx,line_df in word_data_df.groupby("line_numer"):
-        line_height = line_df.height.max()
-        line_top = line_df.top.min()
-        line_bottom = line_top+line_height
-        for idx, row in line_df.iterrows():
-            leter_start_x = row.left
-            space_width = np.min([line_df.loc[:,"left"].iloc[x_idx] - (line_df.loc[:,"left"].iloc[x_idx-1] + line_df.loc[:,"width"].iloc[x_idx-1]) for x_idx in range(1,line_df.shape[0])])
+        for df_idx,line_df in word_data_df.groupby("line_numer"):
+            line_height = line_df.height.max()
+            line_top = line_df.top.min()
+            line_bottom = line_top+line_height
+            for idx, row in line_df.reset_index().iterrows():
+                letter_start_x = row.left
+                
+                for lidx,l in enumerate(row.text):
+                    letter_end_x = letter_start_x + letter_widths[l]
+                    boxes.append(dict(
+                        x1 = letter_start_x,
+                        x2 = letter_end_x,
+                        y1 = line_top,
+                        y2 = line_bottom,
+                        letter =l,
+                        line = df_idx
+                    ))
+                    letter_start_x = letter_start_x + letter_widths[l]
+                if idx == line_df.shape[0]-1:
+                    continue
+                if line_df.shape[0] < 2:
+                    space_width = row.width
+                else:
+                    space_width = np.min([line_df.loc[:,"left"].iloc[x_idx] - (line_df.loc[:,"left"].iloc[x_idx-1] + line_df.loc[:,"width"].iloc[x_idx-1]) for x_idx in range(1,line_df.shape[0])])
             
-            for lidx,l in enumerate(row.text):
-                letter_end_x = leter_start_x + letter_widths[l]
                 boxes.append(dict(
-                    x1 = leter_start_x,
-                    x2 = letter_end_x,
+                    x1 = letter_start_x,
+                    x2 = letter_start_x+space_width,
                     y1 = line_top,
                     y2 = line_bottom,
-                    letter =l,
+                    letter =' ',
                     line = df_idx
                 ))
-                leter_start_x = leter_start_x + letter_widths[l]
-        
-            boxes.append(dict(
-                x1 = leter_start_x,
-                x2 = leter_start_x+space_width,
-                y1 = line_top,
-                y2 = line_bottom,
-                letter =' ',
-                line = df_idx
-            ))
-    boxes_df = pd.DataFrame(boxes)
-    plot_text_and_boxes(img,boxes_df.x1,boxes_df.y1,boxes_df.x2,boxes_df.y2,filename,extra_text="from_im_to_data")
+        boxes_df = pd.DataFrame(boxes)
+        for idx in range(boxes_df.shape[0]-1):
+            if boxes_df.iloc[idx].letter == ' ':
+                boxes_df.iloc[idx].x2 = boxes_df.copy().iloc[idx+1].x1
+    if plot_examples: plot_text_and_boxes(img,boxes_df.x1,boxes_df.y1,boxes_df.x2,boxes_df.y2,filename,extra_text="from_im_to_data")
+    if use_image_to_data:
+        return boxes_df
 
     #plt.imsave(fname='my_image.png', arr=img, cmap='gray_r', format='png')
     # now we need to go over the coords and add the empty spaces:
@@ -227,7 +259,7 @@ def text_coords(filename:str):
     #how to fix extreme values affecting min/ max:
     #1) keep track of prev lines- make sure the current line is bigger than the end of the previous one. 
     #2) If not, take the average of line spacing in the previous
-    plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replot_before_boxChange")
+    if plot_examples: plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replot_before_boxChange")
     y_starts = []
     y_ends = []
     for i in range(len(breaks)):
@@ -254,7 +286,7 @@ def text_coords(filename:str):
         y2_n[start:end]= [y_end]* len(y2_n.copy()[start:end])
     
 
-    plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replot_after_boxChange")
+    if plot_examples: plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replot_after_boxChange")
 
     # y1_n_diff_all = np.diff(y1_n)
     # y1_n_diff = np.unique(y1_n_diff_all)
