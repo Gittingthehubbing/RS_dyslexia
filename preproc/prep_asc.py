@@ -14,7 +14,8 @@ from rewrite_asc import rewrite_asc
 
 def main():
     use_multiprocessing = False #very slow otherwise
-    data_base_path = "D:/pydata/Eye_Tracking/Dyslexia/Dyslexia_Leon"
+    base_dir = ["/media/d","D:"][0]
+    data_base_path = f"{base_dir}/pydata/Eye_Tracking/Dyslexia/Dyslexia_Leon"
     file_dir= f'{data_base_path}/Dyslexia/'
     img_dir= f'{data_base_path}/Info/Stimuli Texts Questions/'
     files = [x.stem for x in pl.Path(file_dir).glob("*.asc")]
