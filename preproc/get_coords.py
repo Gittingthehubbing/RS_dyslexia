@@ -96,40 +96,40 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
 
     #https://github.com/tesseract-ocr/tesseract/blob/main/doc/tesseract.1.asc
 
-    if use_image_to_data:
-        word_data_df=pytesseract.image_to_data(img, config='--psm 3 --oem 1',output_type=pytesseract.Output.DATAFRAME)
-        text = pytesseract.image_to_string(img, config='--psm 3')
-        bool_filter = [False if ' ' == row.text else True for _,row in word_data_df.iterrows()]
-        word_data_df = word_data_df.copy().iloc[bool_filter]
-        if ' ' in word_data_df.iloc[-1].text:
-            word_data_df = word_data_df.copy().iloc[:-1]
-        line_nums = []
-        # is_last_word_in_line = []
-        current_line = -1
-        for idx,row in word_data_df.iterrows():
-            # is_last_word_in_line.append(False)
-            if idx==0:
-                line_nums.append(-1)
-                # if idx == word_data_df.shape[0]:
-                    # is_last_word_in_line[0]=True
-                continue
+    # if use_image_to_data:
+    word_data_df=pytesseract.image_to_data(img, config='--psm 3 --oem 1',output_type=pytesseract.Output.DATAFRAME)
+    text = pytesseract.image_to_string(img, config='--psm 3')
+    bool_filter = [False if ' ' == row.text else True for _,row in word_data_df.iterrows()]
+    word_data_df = word_data_df.copy().iloc[bool_filter]
+    if ' ' in word_data_df.iloc[-1].text:
+        word_data_df = word_data_df.copy().iloc[:-1]
+    line_nums = []
+    # is_last_word_in_line = []
+    current_line = -1
+    for idx,row in word_data_df.iterrows():
+        # is_last_word_in_line.append(False)
+        if idx==0:
+            line_nums.append(-1)
+            # if idx == word_data_df.shape[0]:
+                # is_last_word_in_line[0]=True
+            continue
+        else:
+            if not row.isna().text and not isinstance(word_data_df.loc[idx-1,"text"],str): #np.isnan(word_data_df.loc[idx-1,"text"])
+                current_line += 1
+                line_nums.append(current_line)
+                # if idx == 1:
+                    # is_last_word_in_line[0]=False
+                # is_last_word_in_line[idx-1]=True
             else:
-                if not row.isna().text and not isinstance(word_data_df.loc[idx-1,"text"],str): #np.isnan(word_data_df.loc[idx-1,"text"])
-                    current_line += 1
-                    line_nums.append(current_line)
-                    # if idx == 1:
-                        # is_last_word_in_line[0]=False
-                    # is_last_word_in_line[idx-1]=True
-                else:
-                    line_nums.append(current_line)
+                line_nums.append(current_line)
 
-        word_data_df["line_numer"] = line_nums
-        # word_data_df["is_last_word_in_line"] = is_last_word_in_line
-        word_data_df = word_data_df.dropna(axis=0,how="any")    
-        word_data_df.reset_index(inplace=True,drop=True)
-        word_data_df.loc[:,["left","top","width","height"]] = word_data_df.loc[:,["left","top","width","height"]].copy().applymap(lambda x: x/im_resize_factor)
+    word_data_df["line_numer"] = line_nums
+    # word_data_df["is_last_word_in_line"] = is_last_word_in_line
+    word_data_df = word_data_df.dropna(axis=0,how="any")    
+    word_data_df.reset_index(inplace=True,drop=True)
+    word_data_df.loc[:,["left","top","width","height"]] = word_data_df.loc[:,["left","top","width","height"]].copy().applymap(lambda x: x/im_resize_factor)
 
-        line_height_from_ocr = word_data_df.height.mean()
+    line_height_from_ocr = word_data_df.height.mean()
 
         
     # else:
@@ -226,9 +226,9 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
         for idx in range(boxes_df.shape[0]-1):
             if boxes_df.loc[idx].letter == ' ':
                 boxes_df.loc[idx,"x2"] = boxes_df.copy().iloc[idx+1].x1
-    if plot_examples: plot_text_and_boxes(img,boxes_df.x1,boxes_df.y1,boxes_df.x2,boxes_df.y2,filename,extra_text="from_im_to_data")
-    if use_image_to_data:
-        return boxes_df
+        if plot_examples: plot_text_and_boxes(img,boxes_df.x1,boxes_df.y1,boxes_df.x2,boxes_df.y2,filename,extra_text="from_im_to_data")
+        if use_image_to_data:
+            return boxes_df
 
     #plt.imsave(fname='my_image.png', arr=img, cmap='gray_r', format='png')
     # now we need to go over the coords and add the empty spaces:
@@ -291,11 +291,11 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
             # y_start= y_end +dist_lines # y offset of 1st line
             # y_end= y_start+ line_span 
         
-        y_start= min(y1_n[start:end])-y_offset # y offset of 1st line
+        y_start= min(y1_n[start:end])-line_height_from_ocr/4 # y offset of 1st line
         if len(y_ends)>0 and y_start < y_ends[-1]:
             y_start =  y_ends[-1]
         # y_end= max(y2_n[start:end])+y_offset
-        y_end= y_start + line_height_from_ocr
+        y_end= y_start + line_height_from_ocr + line_height_from_ocr/4
         y_starts.append(y_start)
         y_ends.append(y_end)
         # replace existing y positions with the box bounds:
@@ -305,6 +305,9 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
 
     if plot_examples: plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replot_after_boxChange")
 
+    for x_idx in range(1,len(x1_n)):
+        if x1_n[x_idx] > x2_n[x_idx-1]:
+            x1_n[x_idx] = x2_n[x_idx-1]
     # y1_n_diff_all = np.diff(y1_n)
     # y1_n_diff = np.unique(y1_n_diff_all)
     # lines_span_from_ocr = y1_n_diff[y1_n_diff>0]
@@ -325,8 +328,13 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
         
     #     y1_n[start:end]= [y_start]* len(y1_n.copy()[start:end])
     #     y2_n[start:end]= [y_end]* len(y2_n.copy()[start:end])
-    # #x_diff= [x2_n - x1_n]
-    # plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replot_after_boxChange_touchingBoxes")
+    #x_diff= [x2_n - x1_n]
+    if plot_examples: plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replot_after_boxChange_touchingBoxes")
     df2 = pd.DataFrame(list(zip(letter_n, x1_n, x2_n, y1_n, y2_n)),
                 columns =['letter', 'x1', 'x2', 'y1', 'y2'] )   
+
+    
     return df2
+
+if __name__ == '__main__':
+    print("not for executing")
