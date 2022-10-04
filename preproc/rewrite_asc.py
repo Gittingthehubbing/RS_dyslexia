@@ -16,6 +16,7 @@ def rewrite_asc( file_name:str, file_dir:str, img_dir:str):
     Creates new asc file in folder {oldname}_new"""
 
     # open the .asc file
+    print(f"Reading in file: {file_dir + file_name + '.asc'}")
     with open(file_dir + file_name + '.asc',"r") as file:
         lines = file.readlines()
         lines = [line.rstrip() for line in lines]
@@ -69,8 +70,8 @@ def rewrite_asc( file_name:str, file_dir:str, img_dir:str):
             im_path = list(pl.Path(img_dir).rglob(f"*{img_file}"))
             assert len(im_path) >0, "no matching images found"
 
-            df= text_coords(str(im_path[0]),use_image_to_data=False,plot_examples=True,binarise=False,add_border=False,upscale_im=True)            
-
+            df= text_coords(str(im_path[0]),use_image_to_data=False,plot_examples=False,binarise=False,add_border=False,upscale_im=True)            
+            # print(f"Created letter bounding boxes for {str(im_path[0])}")
         if 'TRIALID' in curr_line:
             if wait_flag==0:
                 
@@ -124,5 +125,10 @@ def rewrite_asc( file_name:str, file_dir:str, img_dir:str):
         new_file.append(curr_line)
     file_dir_path = pl.Path(file_dir).parent.joinpath(f"{pl.Path(file_dir).stem}_new")
     file_dir_path.mkdir(exist_ok=True,parents=False)
+    # print(f'Writing file: {file_dir_path.joinpath(file_name + "_new.asc")}')
     with open(file_dir_path.joinpath(file_name + "_new.asc") , 'w') as f:
         f.write('\n'.join(new_file))
+    return f'Written file: {file_dir_path.joinpath(file_name + "_new.asc")}'
+
+if __name__ == '__main__':
+    print("not for executing")
