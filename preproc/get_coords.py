@@ -8,7 +8,10 @@ Created on Fri Dec 17 00:24:06 2021
 import pytesseract
 
 from PIL import Image, ImageOps
-pytesseract.pytesseract.tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
+import os
+if os.path.exists("C:/Program Files/Tesseract-OCR/tesseract.exe"):
+    pytesseract.pytesseract.tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
+
 import pandas as pd
 import numpy as np
 import pathlib as pl
@@ -83,7 +86,11 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
     im_width, im_height = img.size
     if upscale_im:
         im_resize_factor = 4
-        img = img.resize((im_width*im_resize_factor, im_height*im_resize_factor),resample=Image.Resampling.BICUBIC)
+        if hasattr(Image,"Resampling"):
+            resample = Image.Resampling.BICUBIC
+        elif hasattr(Image,"BICUBIC"):
+            resample = Image.BICUBIC
+        img = img.resize((im_width*im_resize_factor, im_height*im_resize_factor),resample=resample)
     else:
         im_resize_factor = 1
 
@@ -130,7 +137,11 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
     text_psm_11 = pytesseract.image_to_string(img, config='--psm 11')
     
 
-    img = img.resize((im_width, im_height),resample=Image.Resampling.NEAREST)
+    if hasattr(Image,"Resampling"):
+        resample = Image.Resampling.NEAREST
+    elif hasattr(Image,"NEAREST"):
+        resample = Image.NEAREST
+    img = img.resize((im_width, im_height),resample=resample)
 
 
     lines= data.split('\n')
@@ -161,12 +172,16 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
     unique_letters = np.unique(letter)
     letter_widths = dict()
     for l in unique_letters:
-        letter_idx = letter.index(l)
-        letter_width = x2[letter_idx] - x1[letter_idx]
+        indices = [i for i in range(len(letter)) if letter[i] == l]
+        letter_widths_found = [x2[letter_idx] - x1[letter_idx] for letter_idx in indices]
+        # letter_idx = letter.index(l)
+        # letter_width = x2[letter_idx] - x1[letter_idx]
+        letter_width = np.median(letter_widths_found)
         letter_widths[l] = letter_width
     max_letter_width = np.max([v for k,v in letter_widths.items()])
     min_letter_width = np.min([v for k,v in letter_widths.items()])
     letter_widths['.'] = min_letter_width
+    letter_widths[','] = min_letter_width
 
     if use_image_to_data:
         
@@ -176,10 +191,10 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
             line_height = line_df.height.max()
             line_top = line_df.top.min()
             line_bottom = line_top+line_height
-            for idx, row in line_df.reset_index().iterrows():
-                letter_start_x = row.left
+            for idx, word_df in line_df.reset_index().iterrows():
+                letter_start_x = word_df.left
                 
-                for lidx,l in enumerate(row.text):
+                for lidx,l in enumerate(word_df.text):
                     letter_end_x = letter_start_x + letter_widths[l]
                     boxes.append(dict(
                         x1 = letter_start_x,
@@ -190,10 +205,12 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
                         line = df_idx
                     ))
                     letter_start_x = letter_start_x + letter_widths[l]
+                # width_assigned_to_word = np.sum([x["x2"]-x["x1"] for x in boxes[-(lidx+1):]])
+                # width_adjust_factor = word_df.width / width_assigned_to_word
                 if idx == line_df.shape[0]-1:
                     continue
                 if line_df.shape[0] < 2:
-                    space_width = row.width
+                    space_width = word_df.width
                 else:
                     space_width = np.min([line_df.loc[:,"left"].iloc[x_idx] - (line_df.loc[:,"left"].iloc[x_idx-1] + line_df.loc[:,"width"].iloc[x_idx-1]) for x_idx in range(1,line_df.shape[0])])
             
@@ -207,8 +224,8 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
                 ))
         boxes_df = pd.DataFrame(boxes)
         for idx in range(boxes_df.shape[0]-1):
-            if boxes_df.iloc[idx].letter == ' ':
-                boxes_df.iloc[idx].x2 = boxes_df.copy().iloc[idx+1].x1
+            if boxes_df.loc[idx].letter == ' ':
+                boxes_df.loc[idx,"x2"] = boxes_df.copy().iloc[idx+1].x1
     if plot_examples: plot_text_and_boxes(img,boxes_df.x1,boxes_df.y1,boxes_df.x2,boxes_df.y2,filename,extra_text="from_im_to_data")
     if use_image_to_data:
         return boxes_df
