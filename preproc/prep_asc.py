@@ -21,7 +21,6 @@ def main():
     file_dir= f'{data_base_path}/Dyslexia/'
     img_dir= f'{data_base_path}/Info/Stimuli Texts Questions/'
     files = [x.stem for x in pl.Path(file_dir).glob("*.asc")]
-    files = files[30:]
     if use_multiprocessing:
         with get_context("spawn").Pool(4) as pool:
             for p in pool.imap_unordered(partial(rewrite_asc, file_dir=file_dir, img_dir=img_dir),files):
