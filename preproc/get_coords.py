@@ -18,9 +18,20 @@ import pathlib as pl
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-def plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replotted_"):
-    
-    fig, ax = plt.subplots(figsize=(15,15),dpi=300)
+# from https://www.nature.com/articles/s41598-021-84945-9
+SCREEN_RES = (1024,768)
+SCREEN_SIZE = 21 # inches diag
+ratio = SCREEN_RES[0]/SCREEN_RES[1]
+diag_in_px = np.sqrt(SCREEN_RES[0]**2 + SCREEN_RES[1]**2)
+dpi = diag_in_px/SCREEN_SIZE
+
+FONT_PROPS = dict(
+    TNR = dict(font_size = 20),
+    OD = dict(font_size = 18),
+)
+
+def plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replotted_",dpi=300):
+    fig, ax = plt.subplots(figsize=(SCREEN_RES[0]/dpi,SCREEN_RES[1]/dpi),dpi=dpi)
 
     # Display the image
     ax.imshow(img)
