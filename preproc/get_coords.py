@@ -148,6 +148,9 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
         
     # else:
     data=pytesseract.image_to_boxes(img, config='--psm 11',output_type=pytesseract.Output.STRING)
+    data_psm3=pytesseract.image_to_boxes(img, config='--psm 3 --oem 1',output_type=pytesseract.Output.STRING)
+    if len(data_psm3) > len(data):
+        data = data_psm3
     text_psm_11 = pytesseract.image_to_string(img, config='--psm 11')
     
 
