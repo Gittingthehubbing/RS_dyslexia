@@ -23,7 +23,10 @@ SCREEN_RES = (1024,768)
 SCREEN_SIZE = 21 # inches diag
 ratio = SCREEN_RES[0]/SCREEN_RES[1]
 diag_in_px = np.sqrt(SCREEN_RES[0]**2 + SCREEN_RES[1]**2)
-dpi = diag_in_px/SCREEN_SIZE
+height_in_in = SCREEN_SIZE/np.sqrt(1+ratio**2)
+width_in_in = ratio * height_in_in
+dpi = SCREEN_RES[0]/width_in_in
+dpi_from_diag = diag_in_px/SCREEN_SIZE
 
 FONT_PROPS = dict(
     TNR = dict(font_size = 20),
