@@ -5,6 +5,7 @@ Created on Fri Dec 17 00:24:06 2021
 @author: Martin R. Vasilev
 """
 
+from weakref import ref
 import pytesseract
 
 from PIL import Image, ImageOps
@@ -29,8 +30,8 @@ dpi = SCREEN_RES[0]/width_in_in
 dpi_from_diag = diag_in_px/SCREEN_SIZE
 
 FONT_PROPS = dict(
-    TNR = dict(font_size = 20),
-    OD = dict(font_size = 18),
+    TNR = dict(font_size = 20, full_name="Times New Roman"),
+    OD = dict(font_size = 18, full_name="OpenDyslexic"),
 )
 
 def plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replotted_",dpi=300):
@@ -59,7 +60,7 @@ def plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replotted_"
     plt.savefig(save_name)
     plt.close("all")
 
-def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binarise=False,add_border=True,upscale_im=True):
+def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,plot_examples=False,binarise=False,add_border=True,upscale_im=True):
     """Function that extracts letter coordinates from stimulus image
     filename should be path to image with text."""
         
@@ -185,23 +186,35 @@ def text_coords(filename:str,use_image_to_data=False,plot_examples=False,binaris
         
 
 
-    # plt.show()
-    unique_letters = np.unique(letter)
-    letter_widths = dict()
-    for l in unique_letters:
-        indices = [i for i in range(len(letter)) if letter[i] == l]
-        letter_widths_found = [x2[letter_idx] - x1[letter_idx] for letter_idx in indices]
-        # letter_idx = letter.index(l)
-        # letter_width = x2[letter_idx] - x1[letter_idx]
-        letter_width = np.median(letter_widths_found)
-        letter_widths[l] = letter_width
-    max_letter_width = np.max([v for k,v in letter_widths.items()])
-    min_letter_width = np.min([v for k,v in letter_widths.items()])
-    letter_widths['.'] = min_letter_width
-    letter_widths[','] = min_letter_width
 
     if use_image_to_data:
-        
+        letter_widths = dict()
+            
+        if use_reference_widths:
+            scale_factor = 8
+            if "TNR" in pl.Path(img_path).stem:
+                ref_file_name = f"Reference_plots/{FONT_PROPS['TNR']['full_name']}_{FONT_PROPS['TNR']['font_size']}_scale_factor_{scale_factor}.xlsx"
+            elif "OD" in pl.Path(img_path).stem:
+                ref_file_name = f"Reference_plots/{FONT_PROPS['OD']['full_name']}_{FONT_PROPS['OD']['font_size']}_scale_factor_{scale_factor}.xlsx"
+            ref_df = pd.read_excel(ref_file_name,engine="openpyxl")
+            for idx,row in ref_df.iterrows():
+                letter_widths[row.letter] = row.width
+            letter_widths['.'] = letter_widths[',']
+
+        else:
+            unique_letters = np.unique(letter)
+            for l in unique_letters:
+                indices = [i for i in range(len(letter)) if letter[i] == l]
+                letter_widths_found = [x2[letter_idx] - x1[letter_idx] for letter_idx in indices]
+                # letter_idx = letter.index(l)
+                # letter_width = x2[letter_idx] - x1[letter_idx]
+                letter_width = np.median(letter_widths_found)
+                letter_widths[l] = letter_width
+            max_letter_width = np.max([v for k,v in letter_widths.items()])
+            min_letter_width = np.min([v for k,v in letter_widths.items()])
+            letter_widths['.'] = min_letter_width
+            letter_widths[','] = min_letter_width
+
         boxes = []
 
         for df_idx,line_df in word_data_df.groupby("line_numer"):
