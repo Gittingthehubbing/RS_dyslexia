@@ -30,12 +30,22 @@ dpi = SCREEN_RES[0]/width_in_in
 dpi_from_diag = diag_in_px/SCREEN_SIZE
 
 FONT_PROPS = dict(
-    TNR = dict(font_size = 20, full_name="Times New Roman"),
-    OD = dict(font_size = 18, full_name="OpenDyslexic"),
+    TNR = dict(font_size = 20, full_name="Times New Roman", binarisation_threshold=150),
+    OD = dict(font_size = 18, full_name="OpenDyslexic", binarisation_threshold=250),
 )
 
 def plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replotted_",dpi=300):
-    fig, ax = plt.subplots(figsize=(SCREEN_RES[0]/dpi,SCREEN_RES[1]/dpi),dpi=dpi)
+
+    fig = plt.figure(figsize=(SCREEN_RES[0]/dpi,SCREEN_RES[1]/dpi), dpi=dpi)
+    ax = plt.Axes(fig, [0., 0., 1., 1.])
+    # renderer = fig.canvas.get_renderer()
+
+    # ax.set_ylim((0,SCREEN_RES[1]))
+    # ax.set_xlim((0,SCREEN_RES[0]))
+    ax.set_axis_off()
+    fig.add_axes(ax)
+
+    # fig, ax = plt.subplots(figsize=(SCREEN_RES[0]/dpi,SCREEN_RES[1]/dpi),dpi=dpi)
 
     # Display the image
     ax.imshow(img)
@@ -44,11 +54,11 @@ def plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replotted_"
     ymin = np.min(y1_n)
     xmin = np.min(x1_n)
     # rect = patches.Rectangle((xmin, ymin), 5, line_span, linewidth=1, edgecolor='r', facecolor='none')
-
+    colors = ["r","b","g","yellow","black"]*(len(x1_n)//4)
     for idx in range(len(x1_n)):
         xdiff = x2_n[idx]-x1_n[idx]
         ydiff = y2_n[idx]-y1_n[idx]
-        rect = patches.Rectangle((x1_n[idx], y1_n[idx]), xdiff, ydiff, linewidth=0.25, edgecolor='r', facecolor='none')
+        rect = patches.Rectangle((x1_n[idx]-1, y1_n[idx]-1), xdiff, ydiff,alpha=0.4, linewidth=0.25, edgecolor=colors[idx], facecolor='none') #seems to need one pixel offset
 
         # # Add the patch to the Axes
         ax.add_patch(rect)
@@ -56,11 +66,11 @@ def plot_text_and_boxes(img,x1_n,y1_n,x2_n,y2_n,filename,extra_text="replotted_"
     plot_dir = filepath.parent.joinpath("plots")
     plot_dir.mkdir(exist_ok=True)
     save_name = plot_dir.joinpath(f"{extra_text}{filepath.stem}.png")
-    plt.tight_layout()
+    # plt.tight_layout()
     plt.savefig(save_name)
     plt.close("all")
 
-def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,plot_examples=False,binarise=False,add_border=True,upscale_im=True):
+def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,plot_examples=False,binarise=False,add_border=True,upscale_im=True,return_letter_dict=False):
     """Function that extracts letter coordinates from stimulus image
     filename should be path to image with text."""
         
@@ -88,7 +98,10 @@ def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,p
     img = Image.open(img_path)
 
     if binarise:
-        threshold = 225
+        if "TNR" in pl.Path(img_path).stem:
+            threshold = 190
+        elif "OD" in pl.Path(img_path).stem:
+            threshold = 250
         img = img.convert('L')
         # Threshold
         img = img.point( lambda p: 255 if p > threshold else 0 )
@@ -150,7 +163,7 @@ def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,p
     # else:
     data=pytesseract.image_to_boxes(img, config='--psm 11',output_type=pytesseract.Output.STRING)
     data_psm3=pytesseract.image_to_boxes(img, config='--psm 3 --oem 1',output_type=pytesseract.Output.STRING)
-    if len(data_psm3) > len(data):
+    if (len(data_psm3) > len(data)) or use_image_to_data:
         data = data_psm3
     text_psm_11 = pytesseract.image_to_string(img, config='--psm 11')
     
@@ -191,7 +204,7 @@ def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,p
         letter_widths = dict()
             
         if use_reference_widths:
-            scale_factor = 8
+            scale_factor = 4
             if "TNR" in pl.Path(img_path).stem:
                 ref_file_name = f"Reference_plots/{FONT_PROPS['TNR']['full_name']}_{FONT_PROPS['TNR']['font_size']}_scale_factor_{scale_factor}.xlsx"
             elif "OD" in pl.Path(img_path).stem:
@@ -212,9 +225,20 @@ def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,p
                 letter_widths[l] = letter_width
             max_letter_width = np.max([v for k,v in letter_widths.items()])
             min_letter_width = np.min([v for k,v in letter_widths.items()])
-            letter_widths['.'] = min_letter_width
-            letter_widths[','] = min_letter_width
-
+            if '.' not in letter_widths:
+                letter_widths['.'] = min_letter_width
+                letter_widths[','] = letter_widths['.']
+            
+            if "\n" in letter:
+                letters_for_letter_spacing = letter.split('\n')[0]
+            else:
+                letters_for_letter_spacing = letter
+            letter_spacings = []
+            for idx in range(len(letters_for_letter_spacing)-1):
+                space = x1[idx+1] - x2[idx]
+                if space>0:
+                    letter_spacings.append(space)
+            letter_widths["spacing"] = np.mean(letter_spacings)
         boxes = []
 
         for df_idx,line_df in word_data_df.groupby("line_numer"):
@@ -223,18 +247,65 @@ def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,p
             line_bottom = line_top+line_height
             for idx, word_df in line_df.reset_index().iterrows():
                 letter_start_x = word_df.left
-                
-                for lidx,l in enumerate(word_df.text):
-                    letter_end_x = letter_start_x + letter_widths[l]
+                if len(word_df.text) == 1:
                     boxes.append(dict(
-                        x1 = letter_start_x,
-                        x2 = letter_end_x,
+                        x1 = word_df.left,
+                        x2 = word_df.left+word_df.width,
                         y1 = line_top,
                         y2 = line_bottom,
-                        letter =l,
-                        line = df_idx
+                        letter =word_df.text,
+                        line = df_idx,
+                        box_width = word_df.width,
+                        box_height = abs(line_top - line_bottom)
                     ))
-                    letter_start_x = letter_start_x + letter_widths[l]
+                else:
+                    width_per_letter = word_df.width / len(word_df.text)
+                    letter_starts= [word_df.left+x*width_per_letter for x,l in enumerate(word_df.text)]
+                    letter_ends= [word_df.left+x*width_per_letter+letter_widths[l] for x,l in enumerate(word_df.text)]
+                    for lidx,l in enumerate(word_df.text):
+                        if lidx==len(word_df.text)-1:
+                            letter_start_x = l_end
+                            l_end = word_df.left + word_df.width
+                            if l_end < letter_start_x:
+                                l_end = letter_start_x + 1
+                        elif lidx>0:
+                            letter_start_x = l_end
+                            # if l_end < letter_start_x:
+                            l_end = letter_start_x + letter_widths[l]
+                            if l_end < letter_ends[lidx]:
+                                l_end = letter_ends[lidx]
+                        else:
+                            letter_start_x = letter_starts[lidx]
+                            l_end = letter_ends[lidx]
+                        if l_end < letter_start_x:
+                            raise ValueError
+                        elif l_end == letter_start_x:
+                            l_end += 1
+                        assert l_end > letter_start_x, f"l_end{l_end} not > letter_start_x{letter_start_x}"
+                        boxes.append(dict(
+                            x1 = letter_start_x,
+                            x2 = l_end,
+                            y1 = line_top,
+                            y2 = line_bottom,
+                            letter =l,
+                            line = df_idx,
+                            box_width = letter_widths[l],
+                            box_height = abs(line_top - line_bottom)
+                        ))
+
+                        
+                        # letter_end_x = letter_start_x + letter_widths[l] + letter_widths["spacing"]
+                        # boxes.append(dict(
+                        #     x1 = letter_start_x,
+                        #     x2 = letter_end_x,
+                        #     y1 = line_top,
+                        #     y2 = line_bottom,
+                        #     letter =l,
+                        #     line = df_idx,
+                        #     box_width = letter_widths[l],
+                        #     box_height = abs(line_top - line_bottom)
+                        # ))
+                        # letter_start_x = letter_start_x + letter_widths[l] + letter_widths["spacing"]
                 # width_assigned_to_word = np.sum([x["x2"]-x["x1"] for x in boxes[-(lidx+1):]])
                 # width_adjust_factor = word_df.width / width_assigned_to_word
                 if idx == line_df.shape[0]-1:
@@ -242,23 +313,30 @@ def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,p
                 if line_df.shape[0] < 2:
                     space_width = word_df.width
                 else:
-                    space_width = np.min([line_df.loc[:,"left"].iloc[x_idx] - (line_df.loc[:,"left"].iloc[x_idx-1] + line_df.loc[:,"width"].iloc[x_idx-1]) for x_idx in range(1,line_df.shape[0])])
-            
+                    # space_width = np.min(np.abs([line_df.loc[:,"left"].iloc[x_idx] - (line_df.loc[:,"left"].iloc[x_idx-1] + line_df.loc[:,"width"].iloc[x_idx-1]) for x_idx in range(1,line_df.shape[0])]))
+                    # space_width = (line_df.iloc[idx+1,:].left) - (line_df.iloc[idx,:].left + line_df.iloc[idx,:].width)
+                    space_width = line_df.iloc[idx+1,:].left - l_end
+                # space_width = letter_widths['_']
                 boxes.append(dict(
-                    x1 = letter_start_x,
-                    x2 = letter_start_x+space_width,
+                    x1 = l_end,
+                    x2 = line_df.iloc[idx+1,:].left,
                     y1 = line_top,
                     y2 = line_bottom,
                     letter =' ',
-                    line = df_idx
+                    line = df_idx,
+                    box_width = space_width,
+                    box_height = abs(line_top - line_bottom)
                 ))
         boxes_df = pd.DataFrame(boxes)
-        for idx in range(boxes_df.shape[0]-1):
-            if boxes_df.loc[idx].letter == ' ':
-                boxes_df.loc[idx,"x2"] = boxes_df.copy().iloc[idx+1].x1
+        # for idx in range(boxes_df.shape[0]-1):
+        #     if boxes_df.loc[idx].letter == ' ':
+        #         boxes_df.loc[idx,"x2"] = boxes_df.copy().iloc[idx+1].x1
         if plot_examples: plot_text_and_boxes(img,boxes_df.x1,boxes_df.y1,boxes_df.x2,boxes_df.y2,filename,extra_text="from_im_to_data")
         if use_image_to_data:
-            return boxes_df
+            if return_letter_dict:
+                return boxes_df,letter_widths
+            else:
+                return boxes_df
 
     #plt.imsave(fname='my_image.png', arr=img, cmap='gray_r', format='png')
     # now we need to go over the coords and add the empty spaces:
@@ -367,4 +445,15 @@ def text_coords(filename:str,use_image_to_data=False,use_reference_widths=True,p
     return df2
 
 if __name__ == '__main__':
-    print("not for executing")
+
+    example_image_file = r"stimuli\img\TNR20question2Key.bmp"
+    out = text_coords(
+        example_image_file,
+        use_image_to_data=True,
+        use_reference_widths=False,
+        plot_examples=True,
+        binarise=True,
+        add_border=False,
+        upscale_im=True,
+        return_letter_dict=True
+    )
