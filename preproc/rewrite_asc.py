@@ -70,7 +70,7 @@ def rewrite_asc( file_name:str, file_dir:str, img_dir:str):
             im_path = list(pl.Path(img_dir).rglob(f"*{img_file}"))
             assert len(im_path) >0, "no matching images found"
 
-            df= text_coords(str(im_path[0]),use_image_to_data=True,use_reference_widths=True,plot_examples=True,binarise=False,add_border=False,upscale_im=True)            
+            df= text_coords(str(im_path[0]),use_image_to_data=True,use_reference_widths=False,plot_examples=False,binarise=True,add_border=False,upscale_im=True)            
             # print(f"Created letter bounding boxes for {str(im_path[0])}")
         if 'TRIALID' in curr_line:
             if wait_flag==0:
